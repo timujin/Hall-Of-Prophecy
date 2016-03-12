@@ -6,9 +6,10 @@ from tornado.httpserver import HTTPServer
 
 import pymysql
 import json
+from datetime import datetime
 
-from lib.util import parse_config_file
 import lib.db
+import lib.util
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self, args):
@@ -77,6 +78,82 @@ class RegisterAppClient(tornado.web.RequestHandler,
             self.send_error(400)
             return
 
+
+class AddTwitterPrediction(tornado.web.RequestHandler, 
+                    tornado.auth.TwitterMixin):
+    @tornado.gen.coroutine
+    def post(self):
+        input = self.request.body
+        input = input.decode("utf-8")
+        inputDict = json.loads(input)
+        invalidRequest = False
+        requestErrors = {}
+        if not(all(x in inputDict.keys() for x in ["key", "text", "dueDate", "arbiterHandle"])):
+            self.send_error(400)
+            return
+        user = lib.db.getUserByKey(inputDict['key'], options.connection)
+        if not user:
+            invalidRequest = True
+            requestErrors['key'] = "User key not found"
+        dueDate = datetime.utcfromtimestamp(int(inputDict['dueDate']))
+        dueDateDelta = dueDate - datetime.utcnow()
+        if dueDateDelta.total_seconds() < 120:
+            invalidRequest = True
+            requestErrors['dueDate'] = "Date Too Close to Now" + dueDateDelta.total_seconds()
+        if len(inputDict['text']) > 130:
+            invalidRequest = True
+            requestErrors['text'] = "Post text too long"
+        if invalidRequest:
+            self.set_status(400)      
+            self.finish(requestErrors)
+            return
+        """ try:
+            testHandle = yield self.twitter_request(
+                        "/users/show", access_token = user, 
+                        args = {
+                            'screen_name':inputDict['arbiterHandle'],
+                            'include_entities':'false',
+                               }
+                        )
+        except torando.auth.AuthError as e:
+            print(e)
+            #self.send_error(403)
+            return
+        """
+        text = inputDict['text'] + r" #Prophecy"
+        try:
+            post = yield self.twitter_request(
+                        "/statuses/update",
+                        post_args={"status":text},
+                        access_token = user,
+                        )
+        except tornado.auth.AuthError as e:
+            self.set_status(403)
+            self.finish(e.args)
+            return
+        prediction = {}
+        prediction['authorID']=user['id']
+        prediction['text'] = text
+        prediction['tweetID'] = post['id_str']
+        prediction['arbiterHandle'] = inputDict['arbiterHandle']
+        prediction['dueDate'] = inputDict['dueDate']
+        prediction['url'] = lib.util.generateURL() #TODO: ADD check for uniqueness
+        lib.db.saveTwitterPrediction(prediction, options.connection)
+        self.set_status(200)
+        status = {}
+        status['url'] = prediction['url']
+        self.finish(status)
+        
+        
+class ShowTwitterPrediction(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, url):
+        prediction = lib.db.getTwitterPredictionByURL(url, options.connection)
+        if prediction:
+            self.finish(prediction)
+            return
+        self.send_error(404)
+
 class TwitterPoster(tornado.web.RequestHandler,
                         tornado.auth.TwitterMixin):
     @tornado.gen.coroutine
@@ -105,13 +182,15 @@ class TwitterPoster(tornado.web.RequestHandler,
 
 def make_app(settings):
     return tornado.web.Application([
-        (r"/", MainHandler),
         (r"/POSTtest", RegisterAppClient),
+        (r"/prediction/twitter", AddTwitterPrediction),
+        (r"/prediction/twitter/(.*)", ShowTwitterPrediction),
+        (r"(.*)", MainHandler),
        #(r"/testPost/(.*)", TwitterTestPoster),
     ],**settings)
 
 if __name__ == "__main__":
-    parse_config_file("config.conf")
+    lib.util.parse_config_file("config.conf")
     server = options.mysql["server"]
     user = options.mysql["user"]
     password = options.mysql["password"]

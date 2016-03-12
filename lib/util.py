@@ -2,6 +2,8 @@ import tornado
 from tornado.util import basestring_type, exec_in
 from tornado.escape import _unicode, native_str
 from tornado.options import options, define
+import random
+import string
 
 def parse_config_file(path, final=True):
 
@@ -21,4 +23,8 @@ def parse_config_file(path, final=True):
             tornado.options.define(name, config[name])
     if final:
         options.run_parse_callbacks()
+
+def generateURL(size = 16, chars = string.ascii_lowercase + string.digits):
+    return ''.join(random.SystemRandom().choice(chars) for _ in range(size))
+
 

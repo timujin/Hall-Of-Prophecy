@@ -7,25 +7,41 @@ def saveUser(user, connection):
                              token['user_id'], token['secret'], token['x_auth_expires']))
     connection.commit()
 
+def saveTwitterPrediction(pred, connection):
+    with connection.cursor() as cursor:
+        sql = "INSERT INTO `twitterPredictions` (`authorID`, `text`, `tweetID`, `arbiterHandle`, `dueDate`, `url`) \
+                VALUES (%s,%s,%s,%s,%s,%s)"
+        cursor.execute(sql, (pred['authorID'], pred['text'], pred['tweetID'], pred['arbiterHandle'], 
+                            pred['dueDate'], pred['url']))
+    connection.commit()
+
 def getUserByHandle(handle, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
+        sql = "SELECT `id`,`name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
                FROM `Users` WHERE `screen_name` = %s"
         cursor.execute(sql, (handle))
         return cursor.fetchone()
 
 def getUserByKey(key, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
+        sql = "SELECT `id`, `name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
                FROM `Users` WHERE `key` = %s"
         cursor.execute(sql, (key))
         return cursor.fetchone()
         
 def getUserByUserID(user_id, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
+        sql = "SELECT `id`, `name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
                FROM `Users` WHERE `user_id` = %s"
         cursor.execute(sql, (user_id))
+        return cursor.fetchone()
+
+def getTwitterPredictionByURL(url, connection):
+    with connection.cursor() as cursor:
+        sql = "SELECT `name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+                FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
+                WHERE url = %s"
+        cursor.execute(sql, (url))
         return cursor.fetchone()
         
 
