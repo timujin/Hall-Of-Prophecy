@@ -1,3 +1,5 @@
+from datetime import date
+
 def saveUser(user, connection):
     with connection.cursor() as cursor:
         sql = "INSERT INTO `Users` (`name`,`screen_name`, `key`,\
@@ -38,7 +40,7 @@ def getUserByUserID(user_id, connection):
 
 def getTwitterPredictionByURL(url, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+        sql = "SELECT `twitterPredictions`.`id`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
                 FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
                 WHERE url = %s"
         cursor.execute(sql, (url))
@@ -54,6 +56,45 @@ def updateUser(user, connection):
                              token['user_id'], token['secret'], token['x_auth_expires'], token['user_id']))                                   
     connection.commit()
 
+####################
+
+def addTwitterDue(due, connection):
+    with connection.cursor() as cursor:
+        sql = "INSERT INTO `TwitterDues` (`predictionID`, `dueDate`, `confirm`) \
+                VALUES (%s,%s,%s)"
+        cursor.execute(sql, (due["predictionID"], due["dueDate"], due["confirm"]))
+    connection.commit()
+
+def popUpcomingTwitterDues(num, connection):
+    tday = 9999999999999999 #= date.today()
+    with connection.cursor() as cursor:
+        sql = "SELECT `TwitterDues`.`id`,`TwitterDues`.`confirm`,`TwitterDues`.`predictionID`, `TwitterDues`.`dueDate`,\
+         `Users`.`key`, `twitterPredictions`.`authorID`, `twitterPredictions`.`tweetID`,`twitterPredictions`.`arbiterHandle`\
+               FROM `TwitterDues` INNER JOIN `twitterPredictions` ON `TwitterDues`.`predictionID`=`twitterPredictions`.`id` INNER JOIN `Users` ON `Users`.`id`=`twitterPredictions`.`authorID`\
+                WHERE `TwitterDues`.`dueDate` <= %s ORDER BY `TwitterDues`.`dueDate` DESC LIMIT %s"
+        cursor.execute(sql, (tday, num))
+        result = cursor.fetchall()
+        removeTwitterDues(result, connection)
+        return result
+
+def removeTwitterDues(dues, connection):
+    print(dues)
+    with connection.cursor() as cursor:
+        sql = "DELETE FROM `TwitterDues` WHERE `id`=%s"
+        for due in dues:
+            cursor.execute(sql, (due["id"]))
+    connection.commit()
+
+##################
+
+def getUserTwitterPredictions(userID, connection):
+    with connection.cursor() as cursor:
+        sql = "SELECT `twitterPredictions`.`id`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+               FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
+               WHERE `twitterPredictions`.`authorID` = %s"
+        cursor.execute(sql, (userID))
+        return cursor.fetchall()
+    
 
 def testDB(connection):
     try:

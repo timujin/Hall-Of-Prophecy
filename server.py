@@ -10,6 +10,7 @@ from datetime import datetime
 
 import lib.db
 import lib.util
+import TwitterConfirms
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self, args):
@@ -99,7 +100,7 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
         dueDateDelta = dueDate - datetime.utcnow()
         if dueDateDelta.total_seconds() < 120:
             invalidRequest = True
-            requestErrors['dueDate'] = "Date Too Close to Now" + dueDateDelta.total_seconds()
+            requestErrors['dueDate'] = "Date Too Close to Now" + str(dueDateDelta.total_seconds())
         if len(inputDict['text']) > 130:
             invalidRequest = True
             requestErrors['text'] = "Post text too long"
@@ -139,6 +140,9 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
         prediction['dueDate'] = inputDict['dueDate']
         prediction['url'] = lib.util.generateURL() #TODO: ADD check for uniqueness
         lib.db.saveTwitterPrediction(prediction, options.connection)
+        id = lib.db.getTwitterPredictionByURL(prediction["url"], options.connection)["id"]
+        print(str(id) + str(inputDict["dueDate"]) + str(False))
+        lib.db.addTwitterDue({"predictionID":id,"dueDate":inputDict["dueDate"],"confirm":False} ,options.connection)
         self.set_status(200)
         status = {}
         status['url'] = prediction['url']
@@ -153,6 +157,18 @@ class ShowTwitterPrediction(tornado.web.RequestHandler):
             self.finish(prediction)
             return
         self.send_error(404)
+
+class ShowUserProfile(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, userID):
+        user = lib.db.getUserByUserID(userID, options.connection)
+        if user:
+            predictions = lib.db.getUserTwitterPredictions(user['id'], options.connection)
+            result = {}
+            result['predictions'] = predictions
+            self.finish(result)
+        else:
+            self.send_error(404)
 
 class TwitterPoster(tornado.web.RequestHandler,
                         tornado.auth.TwitterMixin):
@@ -182,9 +198,12 @@ class TwitterPoster(tornado.web.RequestHandler,
 
 def make_app(settings):
     return tornado.web.Application([
-        (r"/POSTtest", RegisterAppClient),
+        (r"/register", RegisterAppClient),
         (r"/prediction/twitter", AddTwitterPrediction),
         (r"/prediction/twitter/(.*)", ShowTwitterPrediction),
+        (r"/user/(.*)", ShowUserProfile),
+        (r"/confirm/twitter/ask", TwitterConfirms.AskTwitterPrediction),
+        (r"/confirm/twitter/confirm", TwitterConfirms.ConfirmTwitterPrediction),
         (r"(.*)", MainHandler),
        #(r"/testPost/(.*)", TwitterTestPoster),
     ],**settings)
