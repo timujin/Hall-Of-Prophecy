@@ -89,7 +89,7 @@ def removeTwitterDues(dues, connection):
 
 def getUserTwitterPredictions(userID, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `twitterPredictions`.`id`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+        sql = "SELECT `twitterPredictions`.`url`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
                FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
                WHERE `twitterPredictions`.`authorID` = %s"
         cursor.execute(sql, (userID))
