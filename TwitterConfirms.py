@@ -6,8 +6,8 @@ from tornado.httpserver import HTTPServer
 
 import pymysql
 import json
-from datetime import datetime
-
+#from datetime import datetime
+import datetime
 import lib.db
 import lib.util
 
@@ -76,9 +76,10 @@ class ConfirmTwitterPrediction(tornado.web.RequestHandler,
 
         success = None;
         try:
+            print(inputDict["arbiter"] + str(user)) 
             replies = yield self.twitter_request(
                         "statuses/user_timeline",
-                        post_args={"screen_name ":inputDict["arbiter"],"count":200},
+                        post_args={"screen_name ":inputDict["arbiter"]},
                         access_token = user,
                         )
             for reply in replies:
@@ -88,7 +89,8 @@ class ConfirmTwitterPrediction(tornado.web.RequestHandler,
                          success =  "Unconfirmed"
         except tornado.auth.AuthError as e:
             self.set_status(403)
-            self.finish(e.args)
+            print(str(e))
+            self.finish({"text":str(e)})
             return
         self.set_status(200)
         status = {}

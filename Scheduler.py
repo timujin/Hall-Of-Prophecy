@@ -1,6 +1,7 @@
 import pymysql
 import json
-from datetime import datetime, timedelta
+#from datetime import datetime, timedelta
+import datetime
 import lib.db
 import lib.util
 import urllib
@@ -16,6 +17,9 @@ mysql = {"server":"127.0.0.1",
 conn = 0
 
 def rescheduleDue(due):
+        #t = datetime.datetime.utcfromtimestamp()
+        #d = datetime.timedelta(days=1)
+        #due["dueDate"] += d
         lib.db.addTwitterDue(due, conn)
 
 def scheduleConfirm(due):
@@ -23,7 +27,7 @@ def scheduleConfirm(due):
         lib.db.addTwitterDue(due, conn)
 
 def confirmDue(due):
-       # try:
+        try:
                 post_params = {
                         "key":due["key"],"tweetID":due["tweetID"],"arbiter":due["arbiterHandle"],
                 }
@@ -32,8 +36,9 @@ def confirmDue(due):
                              headers={'content-type': 'application/json'})
                 response = urllib.request.urlopen(req)
                 print(response)
-       # except:
-        #        pass
+                return True
+        except:
+                return False
 
 def checkTwitterDues():
         dues = lib.db.popUpcomingTwitterDues(num=20, connection=conn)

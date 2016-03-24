@@ -7,6 +7,7 @@ from tornado.httpserver import HTTPServer
 import pymysql
 import json
 from datetime import datetime
+import calendar
 
 import lib.db
 import lib.util
@@ -85,8 +86,13 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
     @tornado.gen.coroutine
     def post(self):
         input = self.request.body
-        input = input.decode("utf-8")
-        inputDict = json.loads(input)
+        try:
+            input = input.decode("utf-8")
+            inputDict = json.loads(input)
+        except:
+            self.set_status(400)
+            self.finish("Failed to parse JSON")
+            return
         invalidRequest = False
         requestErrors = {}
         if not(all(x in inputDict.keys() for x in ["key", "text", "dueDate", "arbiterHandle"])):
@@ -154,6 +160,8 @@ class ShowTwitterPrediction(tornado.web.RequestHandler):
     def get(self, url):
         prediction = lib.db.getTwitterPredictionByURL(url, options.connection)
         if prediction:
+            prediction['comments'] = lib.db.getTwitterPredictionComments(prediction['id'], options.connection)
+            prediction['wagers'] = lib.db.getTwitterPredictionWagers(prediction['id'], options.connection)
             self.finish(prediction)
             return
         self.send_error(404)
@@ -170,36 +178,112 @@ class ShowUserProfile(tornado.web.RequestHandler):
         else:
             self.send_error(404)
 
-class TwitterPoster(tornado.web.RequestHandler,
-                        tornado.auth.TwitterMixin):
-    @tornado.gen.coroutine
-    def prepare(self):
-        self.current_user = lib.db.getUserByHandle("hallofprophecy", options.connection)
-        # if 'twitter_access_token' in options:
-         #    self.current_user = options.twitter_access_token
 
+
+
+class AddTwitterPredictionComment(tornado.web.RequestHandler):
     @tornado.gen.coroutine
-    @tornado.web.authenticated
-    def post(self):
-        #access_token = self.current_user
+    def post(self, url):
+        input = self.request.body
+        invalidRequest = False
+        requestErrors = {}
+        prediction = lib.db.getTwitterPredictionByURL(url, options.connection)
+        if not prediction:
+            self.send_error(404)
+            return
         try:
-            new_entry = yield self.twitter_request(
-            "/statuses/update",
-            post_args={"status": arg},
-            access_token=access_token)
-        except tornado.auth.AuthError:
-            self.finish("Message already posted")
+            input = input.decode("utf-8")
+            inputDict = json.loads(input)
+        except:
+            self.set_status(400)
+            self.finish("Failed to parse JSON")
             return
-        if not new_entry:
-            # Call failed; perhaps missing permission?
-            yield self.authorize_redirect()
+            
+        if not(all(x in inputDict.keys() for x in ["author", "text"])):
+            self.set_status(400)
+            self.finish("Some required parameters were not found")
             return
-        self.finish("Posted a message!")
+            
+        user = lib.db.getUserByKey(inputDict['author'], options.connection)
+        if not user:
+            requestErrors['author'] = "User not found"
+            invalidRequest = True
+            
+        if len(inputDict['text']) > 140 or len(inputDict['text']) < 1:
+            requestErrors['text'] = "Comment text should exist and be less then 140 symbols long"
+            invalidRequest = True
+            
+        if invalidRequest:
+            self.set_status(400)
+            self.finish(requestErrors)
+            return
+
+        timestamp = datetime.utcnow()
+        comment = {
+                'author':user['id'],
+                'prediction':prediction['id'],
+                'text':inputDict['text'],
+                'time':calendar.timegm(timestamp.utctimetuple()),
+                }
+        lib.db.saveTwitterComment(comment, options.connection)
+        self.set_status(200)
+        self.finish()
+        return
+
+
+class AddTwitterPredictionWager(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def post(self, url):
+        input = self.request.body
+        invalidRequest = False
+        requestErrors = {}
+        prediction = lib.db.getTwitterPredictionByURL(url, options.connection)
+        if not prediction:
+            self.send_error(404)
+            return
+        try:
+            input = input.decode("utf-8")
+            inputDict = json.loads(input)
+        except:
+            self.set_status(400)
+            self.finish("Failed to parse JSON")
+            return
+        if not(all(x in inputDict.keys() for x in ["author", "wager"])):
+            self.set_status(400)
+            self.finish("Some required parameters were not found")
+            return
+        user = lib.db.getUserByKey(inputDict['author'], options.connection)
+        if not user:
+            requestErrors['author'] = "User not found"
+            invalidRequest = True
+        s = inputDict['wager']
+        if not (s == "0" or s == "1"):
+            requestErrors['wager'] = "Wager should be either 1 or 0"
+            invalidRequest = True
+            
+        if invalidRequest:
+            self.set_status(400)
+            self.finish(requestErrors)
+            return 
+        
+        timestamp = datetime.utcnow()
+        wager = {
+                'author':user['id'],
+                'prediction':prediction['id'],
+                'wager':s,
+                'time':calendar.timegm(timestamp.utctimetuple()),
+                }
+        lib.db.saveTwitterWager(wager, options.connection)
+        self.set_status(200)
+        self.finish()
+        return
 
 def make_app(settings):
     return tornado.web.Application([
         (r"/register", RegisterAppClient),
         (r"/prediction/twitter", AddTwitterPrediction),
+        (r"/prediction/twitter/wager/(.*)", AddTwitterPredictionWager),
+        (r"/prediction/twitter/comment/(.*)", AddTwitterPredictionComment),
         (r"/prediction/twitter/(.*)", ShowTwitterPrediction),
         (r"/user/(.*)", ShowUserProfile),
         (r"/confirm/twitter/ask", TwitterConfirms.AskTwitterPrediction),

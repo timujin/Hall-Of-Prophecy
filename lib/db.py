@@ -94,7 +94,41 @@ def getUserTwitterPredictions(userID, connection):
                WHERE `twitterPredictions`.`authorID` = %s"
         cursor.execute(sql, (userID))
         return cursor.fetchall()
+
+
+
+def saveTwitterComment(comment, connection):
+    with connection.cursor() as cursor:
+        sql = "INSERT INTO `hallofprophecy`.`twitterComments` (`authorID`, `predictionID`, `timestamp`,  `text`)\
+               VALUES (%s,%s,%s,%s)"
+        cursor.execute(sql, (comment['author'], comment['prediction'], comment['time'], comment['text']))
+    connection.commit()
     
+
+def saveTwitterWager(wager, connection):
+    with connection.cursor() as cursor:
+        sql = "INSERT INTO `hallofprophecy`.`twitterWagers` (`authorID`, `predictionID`, `timestamp`,  `wager`)\
+               VALUES (%s,%s,%s,%s)"
+        cursor.execute(sql, (wager['author'], wager['prediction'], wager['time'], wager['wager']))
+    connection.commit()
+
+def getTwitterPredictionWagers(predictionID, connection):
+    with connection.cursor() as cursor:
+        sql = "SELECT `timestamp`, `Users`.`name`, `wager`\
+               FROM `twitterWagers` LEFT JOIN `Users` ON `twitterWagers`.`authorID` = `Users`.`id`\
+               WHERE `predictionID` = %s"
+        cursor.execute(sql, (predictionID))
+        return cursor.fetchall()
+
+def getTwitterPredictionComments(predictionID, connection):
+    with connection.cursor() as cursor:
+        sql = "SELECT `timestamp`, `Users`.`name`, `text`\
+              FROM `twitterComments` LEFT JOIN `Users` ON `twitterComments`.`authorID` = `Users`.`id`\
+              WHERE `predictionID` = %s"                                                                
+        cursor.execute(sql, (predictionID))
+        return cursor.fetchall()
+                                                          
+                                       
 
 def testDB(connection):
     try:
