@@ -170,14 +170,18 @@ class ShowUserProfile(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, userID):
         user = lib.db.getUserByUserID(userID, options.connection)
-        if user:
-            predictions = lib.db.getUserTwitterPredictions(user['id'], options.connection)
-            result = {}
-            result['predictions'] = predictions
-            self.finish(result)
-        else:
-            self.send_error(404)
-
+        if not user:
+            user = lib.db.getUserByHandle(userID, options.connection)
+            if not user:
+                self.send_error(404)
+                return
+        predictions = lib.db.getUserTwitterPredictions(user['id'], options.connection)
+        result = {}
+        result['predictions'] = predictions
+        result['handle'] = user['screen_name']
+        result['name'] = user['name']
+        result['id'] = user['user_id']
+        self.finish(result)
 
 
 
