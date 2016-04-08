@@ -39,6 +39,7 @@ def getUserByUserID(user_id, connection):
         return cursor.fetchone()
 
 def getTwitterPredictionByURL(url, connection):
+    connection.commit()
     with connection.cursor() as cursor:
         sql = "SELECT `twitterPredictions`.`id`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
                 FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
@@ -46,6 +47,8 @@ def getTwitterPredictionByURL(url, connection):
         cursor.execute(sql, (url))
         return cursor.fetchone()
         
+
+
 
 def updateUser(user, connection):
     with connection.cursor() as cursor:
@@ -60,15 +63,17 @@ def updateUser(user, connection):
 
 def addTwitterDue(due, connection):
     with connection.cursor() as cursor:
-        sql = "INSERT INTO `TwitterDues` (`predictionID`, `dueDate`, `confirm`) \
-                VALUES (%s,%s,%s)"
-        cursor.execute(sql, (due["predictionID"], due["dueDate"], due["confirm"]))
+        sql = "INSERT INTO `TwitterDues` (`predictionID`, `dueDate`, `confirm`,`responseTweetID`) \
+                VALUES (%s,%s,%s,%s)"
+        if "responseTweetID" not in due.keys():
+             due["responseTweetID"] = "0"
+        cursor.execute(sql, (due["predictionID"], due["dueDate"], due["confirm"], due["responseTweetID"]))
     connection.commit()
 
 def popUpcomingTwitterDues(num, connection):
     tday = 9999999999999999 #= date.today()
     with connection.cursor() as cursor:
-        sql = "SELECT `TwitterDues`.`id`,`TwitterDues`.`confirm`,`TwitterDues`.`predictionID`, `TwitterDues`.`dueDate`,\
+        sql = "SELECT `TwitterDues`.`id`,`TwitterDues`.`confirm`,`TwitterDues`.`responseTweetID`,`TwitterDues`.`predictionID`, `TwitterDues`.`dueDate`,\
          `Users`.`key`, `twitterPredictions`.`authorID`, `twitterPredictions`.`tweetID`,`twitterPredictions`.`arbiterHandle`\
                FROM `TwitterDues` INNER JOIN `twitterPredictions` ON `TwitterDues`.`predictionID`=`twitterPredictions`.`id` INNER JOIN `Users` ON `Users`.`id`=`twitterPredictions`.`authorID`\
                 WHERE `TwitterDues`.`dueDate` <= %s ORDER BY `TwitterDues`.`dueDate` DESC LIMIT %s"
@@ -85,9 +90,16 @@ def removeTwitterDues(dues, connection):
             cursor.execute(sql, (due["id"]))
     connection.commit()
 
+def passJudgement(id, judgement, connection):
+    with connection.cursor() as cursor:
+        sql = "UPDATE `twitterPredictions` SET `result`=%s WHERE `id`=%s"
+        cursor.execute(sql, (1 if judgement else -1, id))
+    connection.commit()
+
 ##################
 
 def getUserTwitterPredictions(userID, connection):
+    connection.commit()
     with connection.cursor() as cursor:
         sql = "SELECT `twitterPredictions`.`url`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
                FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
@@ -95,7 +107,24 @@ def getUserTwitterPredictions(userID, connection):
         cursor.execute(sql, (userID))
         return cursor.fetchall()
 
-
+def getUserTwitterPredictionsOnlyUndecided(userID, connection):
+    connection.commit()
+    with connection.cursor() as cursor:
+        sql = "SELECT `twitterPredictions`.`url`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+               FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
+               WHERE `twitterPredictions`.`authorID` = %s AND `result` IS NULL"
+        cursor.execute(sql, (userID))
+        return cursor.fetchall()
+        
+def getUserTwitterPredictionsWithWagers(userID, connection):
+    connection.commit()
+    with connection.cursor() as cursor:
+        sql = "SELECT `twitterPredictions`.`id`, `name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+               FROM `twitterWagers` LEFT JOIN `twitterPredictions` ON `twitterWagers`.`predictionID`=`twitterPredictions`.`id`\
+               LEFT JOIN `Users` ON `twitterWagers`.`authorID`=`Users`.`id`\
+               WHERE `twitterWagers`.`authorID`=%s"
+        cursor.execute(sql, (userID))
+        return cursor.fetchall()
 
 def saveTwitterComment(comment, connection):
     with connection.cursor() as cursor:
@@ -114,20 +143,29 @@ def saveTwitterWager(wager, connection):
 
 def getTwitterPredictionWagers(predictionID, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `timestamp`, `Users`.`name`, `wager`\
+        sql = "SELECT `timestamp`, `Users`.`name`, `wager`, `Users`.`user_id`, `Users`.`screen_name` as 'handle'\
                FROM `twitterWagers` LEFT JOIN `Users` ON `twitterWagers`.`authorID` = `Users`.`id`\
                WHERE `predictionID` = %s"
         cursor.execute(sql, (predictionID))
         return cursor.fetchall()
+        
+def getTwitterPredictionAuthorWagers(predictionID, authorID, connection):
+    with connection.cursor() as cursor:
+        sql = "SELECT `timestamp`, `Users`.`name`, `wager`, `Users`.`user_id`, `Users`.`screen_name` as 'handle'\
+                FROM `twitterWagers` LEFT JOIN `Users` ON `twitterWagers`.`authorID` = `Users`.`id`\
+                WHERE `predictionID` = %s AND `authorID` = %s"
+        cursor.execute(sql, (predictionID, authorID))
+        return cursor.fetchall()
+                                                      
 
 def getTwitterPredictionComments(predictionID, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `timestamp`, `Users`.`name`, `text`\
+        sql = "SELECT `timestamp`, `Users`.`name`, `text`, `Users`.`user_id`, `Users`.`screen_name` as 'handle'\
               FROM `twitterComments` LEFT JOIN `Users` ON `twitterComments`.`authorID` = `Users`.`id`\
               WHERE `predictionID` = %s"                                                                
         cursor.execute(sql, (predictionID))
         return cursor.fetchall()
-                                                          
+      
                                        
 
 def testDB(connection):

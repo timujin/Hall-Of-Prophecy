@@ -35,10 +35,10 @@ def confirmDue(due):
                 response = urllib.request.urlopen(req)
                 response = urllib.request.urlopen(req)
                 jsonObj = json.loads(response.read().decode('utf-8'))
-                print("this->" + str(jsonObj["success"]))
-                return jsonObj["success"]
+                print("this->" + str(jsonObj["successs"]))
+                return jsonObj["successs"]
         except Exception as e:
-                print("error" + str(e))
+                print(str(e))
                 return False
 
 def checkTwitterDues():
@@ -47,7 +47,7 @@ def checkTwitterDues():
         for due in dues:
                 if (due["confirm"]):
                         success = confirmDue(due)
-                        recordJudgement(due, success, conn)
+                        recordJudgement(due, success)
                 else:
                         success = askDue(due)
                         if (success):
@@ -76,10 +76,9 @@ def askDue(due):
                 print(str(e))
                 return False
 
-def recordJudgement(due,success, conn):
-    print("Judge: " + str(success))
-    if (success):
-        lib.db.passJudgement(due["predictionID"], success=="Yes", conn)
+def recordJudgement(due,success):
+    print("Judge: " + str(success)
+    pass
 
 if __name__ == "__main__":
     server = mysql["server"]

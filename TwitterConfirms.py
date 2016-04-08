@@ -44,12 +44,13 @@ class AskTwitterPrediction(tornado.web.RequestHandler,
                         access_token = user,
                         )
         except tornado.auth.AuthError as e:
+            print(str(e))
             self.set_status(403)
             self.finish()
             return
         self.set_status(200)
-        status = {}
-        self.finish()
+        status = {"responseTweetID":post["id_str"]}
+        self.finish(status)
 
 class ConfirmTwitterPrediction(tornado.web.RequestHandler, 
                     tornado.auth.TwitterMixin):
@@ -60,7 +61,7 @@ class ConfirmTwitterPrediction(tornado.web.RequestHandler,
         inputDict = json.loads(input)
         invalidRequest = False
         requestErrors = {}
-        if not(all(x in inputDict.keys() for x in ["key", "tweetID", "arbiter"])):
+        if not(all(x in inputDict.keys() for x in ["key", "tweetID", "arbiter","responseTweetID"])):
             self.send_error(400)
             return
         user = lib.db.getUserByKey(inputDict['key'], options.connection)
@@ -73,36 +74,45 @@ class ConfirmTwitterPrediction(tornado.web.RequestHandler,
             self.set_status(400)      
             self.finish(requestErrors)
             return
-
+        print("->" + inputDict["tweetID"])
         success = None;
         try:
-            print(inputDict["arbiter"] + str(user)) 
+            print(inputDict["arbiter"] + str(user))
+            args = {}
+            args['screen_name'] = inputDict["arbiter"] 
             replies = yield self.twitter_request(
-                        "statuses/user_timeline",
-                        post_args={"screen_name ":inputDict["arbiter"]},
-                        access_token = user,
+                        "/statuses/user_timeline",
+                        access_token = user, 
+                        **args
                         )
             for reply in replies:
-                if reply["in_reply_to_status_id"] == tweetID:
-                         success = self.parseReply(reply)
+                print(reply["in_reply_to_status_id"])
+                if str(reply["in_reply_to_status_id"]) == str(inputDict["responseTweetID"]):
+                         res = self.parseReply(reply)
+                         if res != "":
+                                 success = res
+                                 break
             else:
-                         success =  "Unconfirmed"
+                         success =  ""
         except tornado.auth.AuthError as e:
             self.set_status(403)
             print(str(e))
             self.finish({"text":str(e)})
             return
-        self.set_status(200)
+        print(success)
+        self.set_status(200 if success else 403)
         status = {}
         print(success)
         status['success'] = success
         self.finish(status)
 
     def parseReply(self, reply):
+                print("Parse reply")
                 text = reply["text"]
                 if any(x in text for x in ["True", "true", "Yes", "yes", "Confirm", "confirm"]):
-                        return "True"
+                        return "Yes"
                 if any(x in text for x in ["False", "false", "No", "no", "Not", "not"]):
-                        return "False"
+                        return "No"
                 else:
-                        return "Unconfirmed"
+                        return ""
+

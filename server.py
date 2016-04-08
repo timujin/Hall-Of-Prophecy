@@ -147,6 +147,14 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
         prediction['url'] = lib.util.generateURL() #TODO: ADD check for uniqueness
         lib.db.saveTwitterPrediction(prediction, options.connection)
         id = lib.db.getTwitterPredictionByURL(prediction["url"], options.connection)["id"]
+        timestamp = datetime.utcnow()
+        wager = {
+                'author':user['id'],
+                'prediction':id,
+                'wager':'1',
+                'time':calendar.timegm(timestamp.utctimetuple()),
+                }
+        lib.db.saveTwitterWager(wager, options.connection)
         print(str(id) + str(inputDict["dueDate"]) + str(False))
         lib.db.addTwitterDue({"predictionID":id,"dueDate":inputDict["dueDate"],"confirm":False} ,options.connection)
         self.set_status(200)
@@ -160,6 +168,7 @@ class ShowTwitterPrediction(tornado.web.RequestHandler):
     def get(self, url):
         prediction = lib.db.getTwitterPredictionByURL(url, options.connection)
         if prediction:
+            print(prediction)
             prediction['comments'] = lib.db.getTwitterPredictionComments(prediction['id'], options.connection)
             prediction['wagers'] = lib.db.getTwitterPredictionWagers(prediction['id'], options.connection)
             self.finish(prediction)
@@ -183,7 +192,39 @@ class ShowUserProfile(tornado.web.RequestHandler):
         result['id'] = user['user_id']
         self.finish(result)
 
+class ShowUserProfileWithWagers(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, userID):
+        user = lib.db.getUserByUserID(userID, options.connection)
+        if not user:
+            user = lib.db.getUserByHandle(userID, options.connection)
+            if not user:
+                self.send_error(404)
+                return
+        predictions = lib.db.getUserTwitterPredictionsWithWagers(user['id'], options.connection)
+        result = {}
+        result['predictions'] = predictions
+        result['handle'] = user['screen_name']
+        result['name'] = user['name']
+        result['id'] = user['user_id']
+        self.finish(result)
 
+class ShowUserProfileOnlyUndecided(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, userID):
+        user = lib.db.getUserByUserID(userID, options.connection)
+        if not user:
+            user = lib.db.getUserByHandle(userID, options.connection)
+            if not user:
+                self.send_error(404)
+                return
+        predictions = lib.db.getUserTwitterPredictionsOnlyUndecided(user['id'], options.connection)
+        result = {}
+        result['predictions'] = predictions
+        result['handle'] = user['screen_name']
+        result['name'] = user['name']
+        result['id'] = user['user_id']
+        self.finish(result)
 
 class AddTwitterPredictionComment(tornado.web.RequestHandler):
     @tornado.gen.coroutine
@@ -221,7 +262,7 @@ class AddTwitterPredictionComment(tornado.web.RequestHandler):
             self.set_status(400)
             self.finish(requestErrors)
             return
-
+        #print(inputDict['text'])
         timestamp = datetime.utcnow()
         comment = {
                 'author':user['id'],
@@ -269,7 +310,10 @@ class AddTwitterPredictionWager(tornado.web.RequestHandler):
             self.set_status(400)
             self.finish(requestErrors)
             return 
-        
+        wager = lib.db.getTwitterPredictionAuthorWager(prediction['id'], author['id'], options.connection)
+        if wager:
+            self.send_error(403)
+            return
         timestamp = datetime.utcnow()
         wager = {
                 'author':user['id'],
@@ -289,6 +333,8 @@ def make_app(settings):
         (r"/prediction/twitter/wager/(.*)", AddTwitterPredictionWager),
         (r"/prediction/twitter/comment/(.*)", AddTwitterPredictionComment),
         (r"/prediction/twitter/(.*)", ShowTwitterPrediction),
+        (r"/user/withwagers/(.*)", ShowUserProfileWithWagers),
+        (r"/user/onlyundecided/(.*)", ShowUserProfileOnlyUndecided),
         (r"/user/(.*)", ShowUserProfile),
         (r"/confirm/twitter/ask", TwitterConfirms.AskTwitterPrediction),
         (r"/confirm/twitter/confirm", TwitterConfirms.ConfirmTwitterPrediction),
@@ -302,7 +348,7 @@ if __name__ == "__main__":
     user = options.mysql["user"]
     password = options.mysql["password"]
     database = options.mysql["database"]
-    conn = pymysql.connect(host=server, user=user, password=password, db=database,cursorclass=pymysql.cursors.DictCursor)
+    conn = pymysql.connect(host=server, user=user, password=password, db=database,cursorclass=pymysql.cursors.DictCursor, charset='utf8')
     define("connection", conn)
     app = make_app(options.as_dict())
     app.listen(8080)
