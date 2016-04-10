@@ -149,7 +149,7 @@ def getTwitterPredictionWagers(predictionID, connection):
         cursor.execute(sql, (predictionID))
         return cursor.fetchall()
         
-def getTwitterPredictionAuthorWagers(predictionID, authorID, connection):
+def getTwitterPredictionAuthorWager(predictionID, authorID, connection):
     with connection.cursor() as cursor:
         sql = "SELECT `timestamp`, `Users`.`name`, `wager`, `Users`.`user_id`, `Users`.`screen_name` as 'handle'\
                 FROM `twitterWagers` LEFT JOIN `Users` ON `twitterWagers`.`authorID` = `Users`.`id`\

@@ -127,11 +127,11 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
             #self.send_error(403)
             return
         """
-        text = inputDict['text'] + r" #Prophecy"
+        text = inputDict['text']
         try:
             post = yield self.twitter_request(
                         "/statuses/update",
-                        post_args={"status":text},
+                        post_args={"status":text + r" #Prophecy"},
                         access_token = user,
                         )
         except tornado.auth.AuthError as e:
@@ -155,7 +155,7 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
                 'time':calendar.timegm(timestamp.utctimetuple()),
                 }
         lib.db.saveTwitterWager(wager, options.connection)
-        print(str(id) + str(inputDict["dueDate"]) + str(False))
+        #print(str(id) + str(inputDict["dueDate"]) + str(False))
         lib.db.addTwitterDue({"predictionID":id,"dueDate":inputDict["dueDate"],"confirm":False} ,options.connection)
         self.set_status(200)
         status = {}
@@ -168,7 +168,7 @@ class ShowTwitterPrediction(tornado.web.RequestHandler):
     def get(self, url):
         prediction = lib.db.getTwitterPredictionByURL(url, options.connection)
         if prediction:
-            print(prediction)
+            #print(prediction)
             prediction['comments'] = lib.db.getTwitterPredictionComments(prediction['id'], options.connection)
             prediction['wagers'] = lib.db.getTwitterPredictionWagers(prediction['id'], options.connection)
             self.finish(prediction)
@@ -310,7 +310,7 @@ class AddTwitterPredictionWager(tornado.web.RequestHandler):
             self.set_status(400)
             self.finish(requestErrors)
             return 
-        wager = lib.db.getTwitterPredictionAuthorWager(prediction['id'], author['id'], options.connection)
+        wager = lib.db.getTwitterPredictionAuthorWager(prediction['id'], user['id'], options.connection)
         if wager:
             self.send_error(403)
             return
