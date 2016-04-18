@@ -119,7 +119,7 @@ def getUserTwitterPredictionsOnlyUndecided(userID, connection):
 def getUserTwitterPredictionsWithWagers(userID, connection):
     connection.commit()
     with connection.cursor() as cursor:
-        sql = "SELECT `twitterPredictions`.`id`, `name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+        sql = "SELECT `twitterPredictions`.`url`, `name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
                FROM `twitterWagers` LEFT JOIN `twitterPredictions` ON `twitterWagers`.`predictionID`=`twitterPredictions`.`id`\
                LEFT JOIN `Users` ON `twitterWagers`.`authorID`=`Users`.`id`\
                WHERE `twitterWagers`.`authorID`=%s"

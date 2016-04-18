@@ -144,8 +144,14 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
         prediction['tweetID'] = post['id_str']
         prediction['arbiterHandle'] = inputDict['arbiterHandle']
         prediction['dueDate'] = inputDict['dueDate']
-        prediction['url'] = lib.util.generateURL() #TODO: ADD check for uniqueness
-        lib.db.saveTwitterPrediction(prediction, options.connection)
+        prediction['url'] = lib.util.generateURL()
+        while True:
+            try:
+                lib.db.saveTwitterPrediction(prediction, options.connection)
+                break
+            except e:
+                print('Twitter URL Colision found. Regenerating url')
+                prediction['url'] = lib.util.generateURL()
         id = lib.db.getTwitterPredictionByURL(prediction["url"], options.connection)["id"]
         timestamp = datetime.utcnow()
         wager = {
@@ -155,7 +161,6 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
                 'time':calendar.timegm(timestamp.utctimetuple()),
                 }
         lib.db.saveTwitterWager(wager, options.connection)
-        #print(str(id) + str(inputDict["dueDate"]) + str(False))
         lib.db.addTwitterDue({"predictionID":id,"dueDate":inputDict["dueDate"],"confirm":False} ,options.connection)
         self.set_status(200)
         status = {}
@@ -168,7 +173,6 @@ class ShowTwitterPrediction(tornado.web.RequestHandler):
     def get(self, url):
         prediction = lib.db.getTwitterPredictionByURL(url, options.connection)
         if prediction:
-            #print(prediction)
             prediction['comments'] = lib.db.getTwitterPredictionComments(prediction['id'], options.connection)
             prediction['wagers'] = lib.db.getTwitterPredictionWagers(prediction['id'], options.connection)
             self.finish(prediction)
