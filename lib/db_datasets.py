@@ -31,6 +31,7 @@ def createDatasetTables(title, predictionFields, wagerFields, connection):
                   `authorID` int(11) NOT NULL,
                   `predictionID` int(11) NOT NULL,
                   `timestamp` bigint(16) NOT NULL,
+                  `result` int(11) DEFAULT NULL,
                   {1},
                   PRIMARY KEY (`id`),
                   KEY `{0}_authorID_idx` (`authorID`),
@@ -85,7 +86,7 @@ def saveDatasetWager(title, wager, connection):
 
 def getDatasetWagers(title, valuesDict, predictionID, connection):
     with connection.cursor() as cursor:
-        sql = "SELECT `timestamp`, `Users`.`name`, `Users`.`user_id`, `Users`.`screen_name` as 'handle', {1}\
+        sql = "SELECT `timestamp`, `result`, `Users`.`name`, `Users`.`user_id`, `Users`.`screen_name` as 'handle', {1}\
                FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID` = `Users`.`id`\
                WHERE `predictionID` = %s".format(tableWager(title), stringData(valuesDict))
         cursor.execute(sql, (predictionID))
