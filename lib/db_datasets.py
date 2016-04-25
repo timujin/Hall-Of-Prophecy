@@ -2,7 +2,7 @@ tableName   = lambda title: title + "Predictions"
 stringData  = lambda pred : (', '.join(["`{}`"]*len(pred.keys()))).format(*(pred.keys()))
 stringFormat= lambda pred : ','.join(["%s"]*len(pred.keys()))
 stringValues= lambda pred : tuple(str(pred[x]) for x in pred.keys())
-stringConditions= lambda pred: " AND ".join([x + ' = ' + str(pred[x]) for x in pred.keys()])
+stringConditions= lambda pred: " AND ".join(['`' + x + '`' + " = '" + str(pred[x]) + "'" for x in pred.keys()])
 tableWager= lambda title: title + "Wagers"
 createTableFields = lambda pred: (', '.join(["`{}` {}"]*len(pred.keys()))).format(*(list(sum([(k,v) for k,v in pred.items()],()))))
 
@@ -62,6 +62,7 @@ def getDatasetPredictionByDataSet(title, valuesDict, connection):
         sql = "SELECT `{0}`.`id`,`name`, `result`, `url`, {1}\
                 FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID`=`Users`.`id`\
                 WHERE {2}".format(tableName(title), stringData(valuesDict), stringConditions(valuesDict))
+        print(sql)
         cursor.execute(sql, ())
         return cursor.fetchone()
 
@@ -74,15 +75,42 @@ def getDatasetPredictionByURL(title, valuesDict, url, connection):
                 WHERE url = %s".format(tableName(title), stringData(valuesDict))
         cursor.execute(sql, (url))
         return cursor.fetchone()
-     
+
+def getUserDatasetPredictions(title, valuesDict, userID, connection):
+    connection.commit()
+    with connection.cursor() as cursor:
+        sql = "SELECT `{0}`.`url`,`name`, `result`, {1}\
+               FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID`=`Users`.`id`\
+               WHERE `{0}`.`authorID` = %s".format(tableName(title), stringData(valuesDict))
+        cursor.execute(sql, (userID))
+        return cursor.fetchall()
+
+def getUserDatasetPredictionsWithWagers(title, valuesDict, userID, connection):
+    connection.commit()
+    with connection.cursor() as cursor:
+        sql = "SELECT `{0}`.`url`, `name`, `{0}`.`result`, {1}\
+               FROM `{2}` LEFT JOIN `{0}` ON `{2}`.`predictionID`=`{0}`.`id`\
+               LEFT JOIN `Users` ON `{2}`.`authorID`=`Users`.`id`\
+               WHERE `{2}`.`authorID`=%s".format(tableName(title), stringData(valuesDict), tableWager(title))
+        cursor.execute(sql, (userID))
+        return cursor.fetchall()
+
+def getUserDatasetPredictionsOnlyUndecided(title, valuesDict, userID, connection):
+    connection.commit()
+    with connection.cursor() as cursor:
+        sql = "SELECT `{0}`.`url`,`name`, `result`, {1}\
+               FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID`=`Users`.`id`\
+               WHERE `{0}`.`authorID` = %s AND `result` IS NULL".format(tableName(title), stringData(valuesDict))
+        cursor.execute(sql, (userID))
+        return cursor.fetchall()
 
 def saveDatasetWager(title, wager, connection):
     with connection.cursor() as cursor:
-        sql = "INSERT INTO `hallofprophecy`.`{}` ({}) VALUES ({})".format(
+        sql = "INSERT INTO `{}` ({}) VALUES ({})".format(
         	tableWager(title), stringData(wager), stringFormat(wager))
+        print(sql)
         cursor.execute(sql, stringValues(wager))
     connection.commit()
-
 
 def getDatasetWagers(title, valuesDict, predictionID, connection):
     with connection.cursor() as cursor:
@@ -90,4 +118,12 @@ def getDatasetWagers(title, valuesDict, predictionID, connection):
                FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID` = `Users`.`id`\
                WHERE `predictionID` = %s".format(tableWager(title), stringData(valuesDict))
         cursor.execute(sql, (predictionID))
-        return cursor.fetchall()
+        return cursor.fetchall()        
+        
+def getDatasetUserWager(title, valuesDict, predictionID, authorID, connection):
+    with connection.cursor() as cursor:
+        sql = "SELECT `timestamp`, `result`, `Users`.`name`, `Users`.`user_id`, `Users`.`screen_name` as 'handle', {1}\
+               FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID` = `Users`.`id`\
+               WHERE `predictionID` = %s AND `{0}`.`authorID` = %s".format(tableWager(title), stringData(valuesDict))
+        cursor.execute(sql, (predictionID, authorID))
+        return cursor.fetchone()

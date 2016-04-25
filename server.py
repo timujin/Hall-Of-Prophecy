@@ -10,8 +10,11 @@ from datetime import datetime
 import calendar
 
 import lib.db
+import lib.db_datasets
 import lib.util
 import TwitterConfirms
+
+import ExtraDataSets
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self, args):
@@ -188,9 +191,19 @@ class ShowUserProfile(tornado.web.RequestHandler):
             if not user:
                 self.send_error(404)
                 return
-        predictions = lib.db.getUserTwitterPredictions(user['id'], options.connection)
+        predictionsDataset = {}
+        predictionsDataset["twitter"] = lib.db.getUserTwitterPredictions(user['id'], options.connection)
+        print(ExtraDataSets.dataSets)
+
+        for dataSet in ExtraDataSets.dataSets:
+            dataSetDescription = dataSet["description"]
+            print(dataSet["title"])
+            predictions = lib.db_datasets.getUserDatasetPredictions(dataSetDescription.title, 
+                                                                              dataSetDescription.predictionFields, user['id'],
+                                                                              options.connection)
+            predictionsDataset[dataSetDescription.title] = predictions
         result = {}
-        result['predictions'] = predictions
+        result['predictions'] = predictionsDataset
         result['handle'] = user['screen_name']
         result['name'] = user['name']
         result['id'] = user['user_id']
@@ -205,9 +218,17 @@ class ShowUserProfileWithWagers(tornado.web.RequestHandler):
             if not user:
                 self.send_error(404)
                 return
-        predictions = lib.db.getUserTwitterPredictionsWithWagers(user['id'], options.connection)
+        predictionsDataset = {}
+        predictionsDataset["twitter"] = lib.db.getUserTwitterPredictionsWithWagers(user['id'], options.connection)
+
+        for dataSet in ExtraDataSets.dataSets:
+            dataSetDescription = dataSet["description"]
+            predictions = lib.db_datasets.getUserDatasetPredictionsWithWagers(dataSetDescription.title, 
+                                                                              dataSetDescription.predictionFields, user['id'],
+                                                                              options.connection)
+            predictionsDataset[dataSetDescription.title] = predictions
         result = {}
-        result['predictions'] = predictions
+        result['predictions'] = predictionsDataset
         result['handle'] = user['screen_name']
         result['name'] = user['name']
         result['id'] = user['user_id']
@@ -222,9 +243,17 @@ class ShowUserProfileOnlyUndecided(tornado.web.RequestHandler):
             if not user:
                 self.send_error(404)
                 return
-        predictions = lib.db.getUserTwitterPredictionsOnlyUndecided(user['id'], options.connection)
+        predictionsDataset = {}
+        predictionsDataset["twitter"] = lib.db.getUserTwitterPredictionsOnlyUndecided(user['id'], options.connection)
+
+        for dataSet in ExtraDataSets.dataSets:
+            dataSetDescription = dataSet["description"]
+            predictions = lib.db_datasets.getUserDatasetPredictionsOnlyUndecided(dataSetDescription.title, 
+                                                                              dataSetDescription.predictionFields, user['id'],
+                                                                              options.connection)
+            predictionsDataset[dataSetDescription.title] = predictions
         result = {}
-        result['predictions'] = predictions
+        result['predictions'] = predictionsDataset
         result['handle'] = user['screen_name']
         result['name'] = user['name']
         result['id'] = user['user_id']
@@ -331,7 +360,7 @@ class AddTwitterPredictionWager(tornado.web.RequestHandler):
         return
 
 def make_app(settings):
-    return tornado.web.Application([
+    endpoints = ExtraDataSets.endpoints + ([
         (r"/register", RegisterAppClient),
         (r"/prediction/twitter", AddTwitterPrediction),
         (r"/prediction/twitter/wager/(.*)", AddTwitterPredictionWager),
@@ -344,7 +373,22 @@ def make_app(settings):
         (r"/confirm/twitter/confirm", TwitterConfirms.ConfirmTwitterPrediction),
         (r"(.*)", MainHandler),
        #(r"/testPost/(.*)", TwitterTestPoster),
-    ],**settings)
+    ])
+    print (endpoints)
+    return tornado.web.Application(endpoints, **settings)
+      #  (r"/register", RegisterAppClient),
+       # (r"/prediction/twitter", AddTwitterPrediction),
+       # (r"/prediction/twitter/wager/(.*)", AddTwitterPredictionWager),
+       # (r"/prediction/twitter/comment/(.*)", AddTwitterPredictionComment),
+       # (r"/prediction/twitter/(.*)", ShowTwitterPrediction),
+       # (r"/user/withwagers/(.*)", ShowUserProfileWithWagers),
+       # (r"/user/onlyundecided/(.*)", ShowUserProfileOnlyUndecided),
+       # (r"/user/(.*)", ShowUserProfile),
+       # (r"/confirm/twitter/ask", TwitterConfirms.AskTwitterPrediction),
+       # (r"/confirm/twitter/confirm", TwitterConfirms.ConfirmTwitterPrediction),
+       # (r"(.*)", MainHandler),
+       #(r"/testPost/(.*)", TwitterTestPoster),
+   # ]+ExtraDataSets.endpoints,**settings)
 
 if __name__ == "__main__":
     lib.util.parse_config_file("config.conf")
@@ -354,6 +398,7 @@ if __name__ == "__main__":
     database = options.mysql["database"]
     conn = pymysql.connect(host=server, user=user, password=password, db=database,cursorclass=pymysql.cursors.DictCursor, charset='utf8')
     define("connection", conn)
+    ExtraDataSets.init()
     app = make_app(options.as_dict())
     app.listen(8080)
     tornado.ioloop.IOLoop.current().start()
