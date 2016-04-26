@@ -21,14 +21,13 @@ bidDirections = {
 
 predictionFields = {
         "currencies":"VARCHAR(10) NOT NULL",
-        "dueDate":"BIGINT(16) NOT NULL",
-    }
+    }   
 wagerFields = {
-        "targetBid":"INT(11) NOT NULL",
+        "targetBid":"FLOAT NOT NULL",
         "bidDirection":"VARCHAR(3) NOT NULL",
     }
 judgementFields = {
-        "judgementBid":"INT(11) DEFAULT NULL",
+        "judgementBid":"FLOAT DEFAULT NULL",
         "judgementDate":"BIGINT(16) DEFAULT NULL",
     }
 
@@ -68,7 +67,7 @@ def getJudgement(prediction):
     
 def decideJudgement(wager, judgement):    
     if judgement:
-        return bidDirections(wager['targetBid'], judgement['judgementBid'])    
+        return bidDirections[wager['bidDirection']](wager['targetBid'], judgement['judgementBid'])    
 
 
 def getData():
@@ -77,7 +76,7 @@ def getData():
     return ret
 
     
-def getValue(symbol):
+def _getValue(symbol):
     ret = {}
     cur = Currency(symbol)
     ret['rate'] = cur.get_rate()

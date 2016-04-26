@@ -6,6 +6,7 @@ from tornado.options import options
 import json
 from datetime import datetime
 import calendar
+import traceback
 
 import lib.db
 import lib.util
@@ -20,6 +21,8 @@ endpoints = []
 
 def loadDataSet(dataSetFile):
     dataSetDescription = importlib.import_module("dataSets."+dataSetFile)
+    
+    dataSetDescription.predictionFields.update(lib.db_datasets.defaultPredictionNetworkFields)
 
     class AddDataSetPrediction(tornado.web.RequestHandler,
                         tornado.auth.TwitterMixin):
@@ -31,13 +34,15 @@ def loadDataSet(dataSetFile):
                 inputDict = json.loads(input)
             except:
                 self.set_status(400)
+                print("Failed to parser JSON")
                 self.finish("Failed to parse JSON")
                 return
             invalidRequest = False
             requestErrors = {}
-            properKeys = ["key"] + list(dataSetDescription.predictionFields.keys()) + list(dataSetDescription.wagerFields.keys())
+            properKeys = ["key", "dueDate"] + list(dataSetDescription.predictionFields.keys()) + list(dataSetDescription.wagerFields.keys())
             if not(all(x in inputDict.keys() for x in properKeys)):
                 self.send_error(400)
+                print("All required fields not found")
                 return
             user = lib.db.getUserByKey(inputDict['key'], options.connection)
             if not user:
@@ -51,10 +56,13 @@ def loadDataSet(dataSetFile):
             wagerData = dataSetDescription.processWager(wagerData)
             if not predictionData or not wagerData:
                 invalidRequest = True
+                print(predictionData)
+                print(wagerData)
                 requestErrors['data'] = "Invalid prediction data"
             if invalidRequest:
                 self.set_status(400)
                 self.finish(requestErrors)
+                print(requestErrors)
                 return
             prediction = lib.db_datasets.getDatasetPredictionByDataSet(dataSetDescription.title, predictionData, options.connection)
             if (not prediction):
@@ -98,6 +106,7 @@ def loadDataSet(dataSetFile):
                 inputDict = json.loads(input)
             except:
                 self.set_status(400)
+                print("Failed to parse JSON")
                 self.finish("Failed to parse JSON")
                 return
             properKeys = ["key"] + list(dataSetDescription.wagerFields.keys())
@@ -114,6 +123,7 @@ def loadDataSet(dataSetFile):
             if not wagerData:
                 self.set_status(400)
                 self.finish(requestErrors)
+                print(requestErrors)
                 return
             wager = lib.db_datasets.getDatasetUserWager(dataSetDescription.title, dataSetDescription.wagerFields,
                                                         prediction['id'], user['id'], options.connection)
@@ -161,9 +171,23 @@ def loadDataSet(dataSetFile):
         "GetData" : GetDataSetData,
     }
     
-    lib.db_datasets.createDatasetTables(dataSetDescription.title, dataSetDescription.predictionFields, dataSetDescription.wagerFields, options.connection)
+    lib.db_datasets.createDatasetTables(dataSetDescription.title, dataSetDescription.predictionFields,
+                                        dataSetDescription.wagerFields, dataSetDescription.judgementFields, options.connection)
                                  
     dataSets.append(dataSetDict)
+
+
+def loadDataSetDescription(dataSetFile):
+    dataSetDescription = importlib.import_module("dataSets."+dataSetFile)
+    
+    dataSetDescription.predictionFields.update(lib.db_datasets.defaultPredictionNetworkFields)
+    
+    dataSetDict = {
+        "title": dataSetDescription.title,
+        "description": dataSetDescription,
+    }
+    return dataSetDict
+    
 
 
 def turnDataSetsIntoTornadoEndpoints():
@@ -180,9 +204,23 @@ def init():
         if file != "__init__.py":
             try:
                 loadDataSet(file[:-3])
-            except:
+            except Exception as e:
                 print(sys.exc_info())
+                traceback.format_exc()
                 pass
     
     turnDataSetsIntoTornadoEndpoints()
+    
+def getDatasetsDescriptions():
+    ret = {}
+    files = os.listdir("dataSets")
+    for file in files:
+        if file != "__init__.py":
+            try:
+                ret[file[:-3]] = loadDataSetDescription(file[:-3])
+            except:
+                print(sys.exc_info())
+                pass
+    return ret
+
     

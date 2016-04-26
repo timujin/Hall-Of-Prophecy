@@ -18,7 +18,7 @@ import ExtraDataSets
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self, args):
-        self.write("Hello, world " + args)
+        self.send_error(404)
 
 
 class TwitterLoginHandler(tornado.web.RequestHandler,
