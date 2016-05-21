@@ -1,6 +1,8 @@
 from yahoo_finance import Currency
 import datetime
 
+import lib.datasets
+
 availableCurrencies = ["USDRUB",
                       "EURUSD",
                       "EURRUB",
@@ -21,11 +23,14 @@ bidDirections = {
 
 predictionFields = {
         "currencies":"VARCHAR(10) NOT NULL",
-    }   
+    }
+
 wagerFields = {
         "targetBid":"FLOAT NOT NULL",
         "bidDirection":"VARCHAR(3) NOT NULL",
     }
+
+
 judgementFields = {
         "judgementBid":"FLOAT DEFAULT NULL",
         "judgementDate":"BIGINT(16) DEFAULT NULL",
@@ -44,7 +49,7 @@ def processPrediction(prediction):
         return None
     prediction['dueDate'] = dueDate.timestamp()
     return prediction
-    
+
 def processWager(wager):
     try:
         bid = int(wager['targetBid'])
@@ -53,7 +58,7 @@ def processWager(wager):
     if (wager['bidDirection'] not in bidDirections):
         return None
     return wager
-    
+
 def getJudgement(prediction):
     value = _getValue(prediction['currencies'])
     judgement = {}
@@ -63,11 +68,11 @@ def getJudgement(prediction):
     else:
         return None
     return judgement
-        
-    
-def decideJudgement(wager, judgement):    
+
+
+def decideJudgement(wager, judgement):
     if judgement:
-        return bidDirections[wager['bidDirection']](wager['targetBid'], judgement['judgementBid'])    
+        return bidDirections[wager['bidDirection']](float(wager['targetBid']), float(judgement['judgementBid']))
 
 
 def getData():
@@ -75,7 +80,7 @@ def getData():
     ret["currencies"] = availableCurrencies
     return ret
 
-    
+
 def _getValue(symbol):
     ret = {}
     cur = Currency(symbol)

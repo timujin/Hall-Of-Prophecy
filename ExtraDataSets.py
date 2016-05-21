@@ -1,5 +1,3 @@
-import tornado.auth
-import tornado.ioloop
 import tornado.web
 from tornado.options import options
 
@@ -21,11 +19,12 @@ endpoints = []
 
 def loadDataSet(dataSetFile):
     dataSetDescription = importlib.import_module("dataSets."+dataSetFile)
-    
-    dataSetDescription.predictionFields.update(lib.db_datasets.defaultPredictionNetworkFields)
 
-    class AddDataSetPrediction(tornado.web.RequestHandler,
-                        tornado.auth.TwitterMixin):
+    dataSetDescription.predictionFields.update(lib.datasets.defaultPredictionNetworkFields)
+    dataSetDescription.wagerFields.update(lib.datasets.defaultWagerNetworkFields)
+    dataSetDescription.judgementFields.update(lib.datasets.defaultJudgementNetworkFields)
+
+    class AddDataSetPrediction(tornado.web.RequestHandler):
         @tornado.gen.coroutine
         def post(self):
             input = self.request.body
@@ -64,7 +63,7 @@ def loadDataSet(dataSetFile):
                 self.finish(requestErrors)
                 print(requestErrors)
                 return
-            prediction = lib.db_datasets.getDatasetPredictionByDataSet(dataSetDescription.title, predictionData, options.connection)
+            prediction = lib.db_datasets.getDatasetPredictionByDataSet(dataSetDescription.title, predictionData, dataSetDescription.judgementFields, options.connection)
             if (not prediction):
                 prediction = predictionData
                 prediction['authorID']=user['id']
@@ -77,7 +76,8 @@ def loadDataSet(dataSetFile):
                         print('URL Colision found. Regenerating url')
                         print(e)
                         prediction['url'] = lib.util.generateURL()
-                prediction["id"] = lib.db_datasets.getDatasetPredictionByURL(dataSetDescription.title, predictionData, prediction["url"], options.connection)["id"]
+                prediction["id"] = lib.db_datasets.getDatasetPredictionByURL(dataSetDescription.title, predictionData, prediction["url"],
+                                                                             dataSetDescription.judgementFields, options.connection)["id"]
 
             timestamp = datetime.utcnow()
             wager = wagerData
@@ -97,7 +97,8 @@ def loadDataSet(dataSetFile):
             invalidRequest = False
             requestErrors = {}
             prediction = lib.db_datasets.getDatasetPredictionByURL(dataSetDescription.title,
-                                                                   dataSetDescription.predictionFields, url, options.connection)
+                                                                   dataSetDescription.predictionFields, url,
+                                                                   dataSetDescription.judgementFields, options.connection)
             if not prediction:
                 self.send_error(404)
                 return
@@ -112,9 +113,11 @@ def loadDataSet(dataSetFile):
             properKeys = ["key"] + list(dataSetDescription.wagerFields.keys())
             if not(all(x in inputDict.keys() for x in properKeys)):
                 self.set_status(400)
+                print("Some required parameters were not found")
+                print(inputDict.keys(), " != ",  properKeys)
                 self.finish("Some required parameters were not found")
                 return
-            user = lib.db.getUserByKey(inputDict['author'], options.connection)
+            user = lib.db.getUserByKey(inputDict['key'], options.connection)
             if not user:
                 requestErrors['author'] = "User not found"
                 invalidRequest = True
@@ -135,7 +138,7 @@ def loadDataSet(dataSetFile):
             wager["authorID"] = user["id"]
             wager["predictionID"] = prediction["id"]
             wager["timestamp"] = calendar.timegm(timestamp.utctimetuple())
-            lib.db_datasets.saveTwitterWager(dataSetDescription.title, wager, options.connection)
+            lib.db_datasets.saveDatasetWager(dataSetDescription.title, wager, options.connection)
             self.set_status(200)
             self.finish()
             return
@@ -144,14 +147,15 @@ def loadDataSet(dataSetFile):
         @tornado.gen.coroutine
         def get(self, url):
             prediction = lib.db_datasets.getDatasetPredictionByURL(dataSetDescription.title,
-                                                                   dataSetDescription.predictionFields, url, options.connection)
+                                                                   dataSetDescription.predictionFields, url, 
+                                                                   dataSetDescription.judgementFields, options.connection)
             if prediction:
                 prediction['wagers'] = lib.db_datasets.getDatasetWagers(dataSetDescription.title, dataSetDescription.wagerFields,
                                                                         prediction['id'], options.connection)
                 self.finish(prediction)
                 return
             self.send_error(404)
-            
+
     class GetDataSetData(tornado.web.RequestHandler):
         @tornado.gen.coroutine
         def get(self):
@@ -170,24 +174,21 @@ def loadDataSet(dataSetFile):
         "GetPrediction": ShowDataSetPrediction,
         "GetData" : GetDataSetData,
     }
-    
+
     lib.db_datasets.createDatasetTables(dataSetDescription.title, dataSetDescription.predictionFields,
                                         dataSetDescription.wagerFields, dataSetDescription.judgementFields, options.connection)
-                                 
+
     dataSets.append(dataSetDict)
 
 
 def loadDataSetDescription(dataSetFile):
     dataSetDescription = importlib.import_module("dataSets."+dataSetFile)
-    
-    dataSetDescription.predictionFields.update(lib.db_datasets.defaultPredictionNetworkFields)
-    
-    dataSetDict = {
-        "title": dataSetDescription.title,
-        "description": dataSetDescription,
-    }
-    return dataSetDict
-    
+
+    dataSetDescription.predictionFields.update(lib.datasets.defaultPredictionNetworkFields)
+    dataSetDescription.wagerFields.update(lib.datasets.defaultWagerNetworkFields)
+    dataSetDescription.judgementFields.update(lib.datasets.defaultJudgementNetworkFields)
+
+    return dataSetDescription
 
 
 def turnDataSetsIntoTornadoEndpoints():
@@ -198,7 +199,7 @@ def turnDataSetsIntoTornadoEndpoints():
         endpoints.append((r"/prediction/" + dataSet["title"] + "/(.*)", dataSet["GetPrediction"]))
         endpoints.append((r"/" + dataSet["title"], dataSet["GetData"]))
 
-def init():    
+def init():
     files = os.listdir("dataSets")
     for file in files:
         if file != "__init__.py":
@@ -208,9 +209,9 @@ def init():
                 print(sys.exc_info())
                 traceback.format_exc()
                 pass
-    
+
     turnDataSetsIntoTornadoEndpoints()
-    
+
 def getDatasetsDescriptions():
     ret = {}
     files = os.listdir("dataSets")
@@ -218,9 +219,8 @@ def getDatasetsDescriptions():
         if file != "__init__.py":
             try:
                 ret[file[:-3]] = loadDataSetDescription(file[:-3])
-            except:
+            except Exception as e:
                 print(sys.exc_info())
+                traceback.format_exc()
                 pass
     return ret
-
-    

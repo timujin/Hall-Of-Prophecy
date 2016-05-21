@@ -326,13 +326,13 @@ class AddTwitterPredictionWager(tornado.web.RequestHandler):
             self.set_status(400)
             self.finish("Failed to parse JSON")
             return
-        if not(all(x in inputDict.keys() for x in ["author", "wager"])):
+        if not(all(x in inputDict.keys() for x in ["key", "wager"])):
             self.set_status(400)
             self.finish("Some required parameters were not found")
             return
-        user = lib.db.getUserByKey(inputDict['author'], options.connection)
+        user = lib.db.getUserByKey(inputDict['key'], options.connection)
         if not user:
-            requestErrors['author'] = "User not found"
+            requestErrors['key'] = "User not found"
             invalidRequest = True
         s = inputDict['wager']
         if not (s == "0" or s == "1"):

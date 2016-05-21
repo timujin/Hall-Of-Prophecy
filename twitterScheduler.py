@@ -30,7 +30,7 @@ def confirmDue(due):
                         "key":due["key"],"tweetID":due["tweetID"],"arbiter":due["arbiterHandle"],"responseTweetID":due["responseTweetID"]
                 }
                 params = json.dumps(post_params).encode('utf-8')
-                req = urllib.request.Request("http://hallofprophecy.xyz:8080/confirm/twitter/confirm", data=params,
+                req = urllib.request.Request("http://127.0.0.1:8080/confirm/twitter/confirm", data=params,
                              headers={'content-type': 'application/json'})
                 response = urllib.request.urlopen(req)
                 response = urllib.request.urlopen(req)
@@ -62,7 +62,7 @@ def askDue(due):
                         "key":due["key"],"tweetID":due["tweetID"],"arbiter":due["arbiterHandle"],"dueDate":due["dueDate"],
                 }
                 params = json.dumps(post_params).encode('utf-8')
-                req = urllib.request.Request("http://hallofprophecy.xyz:8080/confirm/twitter/ask", data=params,
+                req = urllib.request.Request("http://127.0.0.1:8080/confirm/twitter/ask", data=params,
                              headers={'content-type': 'application/json'})
                 response = urllib.request.urlopen(req)
                 #print ("111" + response.read().decode('utf-8'))
