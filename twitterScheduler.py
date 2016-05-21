@@ -1,5 +1,8 @@
 import pymysql
 import json
+from gcm import GCM
+from tornado.options import options
+
 #from datetime import datetime, timedelta
 import datetime
 import lib.db
@@ -7,12 +10,9 @@ import lib.util
 import urllib
 import urllib.request
 
-mysql = {"server":"127.0.0.1",
-         "user":"hallofprophecy",
-         "password":"hallofprophecy123",
-         "port":"3306",
-         "database":"hallofprophecy",
-         }
+lib.util.parse_config_file("config.conf")
+
+mysql = options.mysql
 
 conn = 0
 
@@ -77,8 +77,16 @@ def askDue(due):
                 return False
 
 def recordJudgement(due,success, conn):
+    gcm = GCM(options.gcm_key)
     print("Judge: " + str(success))
     if (success):
+        prediction = lib.db.getTwitterPredictionByPredictionID(due["predictionID"], conn)
+        wagers = lib.db.getTwitterPredictionWagersLocal(due["predictionID"], conn)
+        message = {"message" : "Your prediction have been judged",
+                    "link": r"https://" + options.hostname + r"/" + r"prediction/twitter/" + prediction['url'],
+                  }
+        regids = [x['regid'] for x in wagers if x['regid']]
+        gcm.json_request(registration_ids=regids, data = message, priority='high')
         lib.db.passJudgement(due["predictionID"], success=="Yes", conn)
 
 if __name__ == "__main__":
@@ -89,6 +97,3 @@ if __name__ == "__main__":
     conn = pymysql.connect(host=server, user=user, password=password, db=database,cursorclass=pymysql.cursors.DictCursor)
 
     checkTwitterDues()
-
-
-

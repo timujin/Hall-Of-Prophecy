@@ -79,11 +79,21 @@ def loadDataSet(dataSetFile):
                 prediction["id"] = lib.db_datasets.getDatasetPredictionByURL(dataSetDescription.title, predictionData, prediction["url"],
                                                                              dataSetDescription.judgementFields, options.connection)["id"]
 
+            wager = lib.db_datasets.getDatasetUserWager(dataSetDescription.title, dataSetDescription.wagerFields,
+                                                        prediction['id'], user['id'], options.connection)
+            if wager:
+                print("Such wager and prediction already exists")
+                self.set_status(200)
+                status = {}
+                status['url'] = prediction['url']
+                self.finish(status)
+                return
             timestamp = datetime.utcnow()
             wager = wagerData
             wager["authorID"] = user["id"]
             wager["predictionID"] = prediction["id"]
             wager["timestamp"] = calendar.timegm(timestamp.utctimetuple())
+            
             lib.db_datasets.saveDatasetWager(dataSetDescription.title, wager, options.connection)
             self.set_status(200)
             status = {}
@@ -147,7 +157,7 @@ def loadDataSet(dataSetFile):
         @tornado.gen.coroutine
         def get(self, url):
             prediction = lib.db_datasets.getDatasetPredictionByURL(dataSetDescription.title,
-                                                                   dataSetDescription.predictionFields, url, 
+                                                                   dataSetDescription.predictionFields, url,
                                                                    dataSetDescription.judgementFields, options.connection)
             if prediction:
                 prediction['wagers'] = lib.db_datasets.getDatasetWagers(dataSetDescription.title, dataSetDescription.wagerFields,

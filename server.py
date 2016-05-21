@@ -6,6 +6,8 @@ from tornado.httpserver import HTTPServer
 
 import pymysql
 import json
+from gcm import GCM
+
 from datetime import datetime
 import calendar
 
@@ -13,7 +15,6 @@ import lib.db
 import lib.db_datasets
 import lib.util
 import TwitterConfirms
-
 import ExtraDataSets
 
 class MainHandler(tornado.web.RequestHandler):
@@ -21,7 +22,7 @@ class MainHandler(tornado.web.RequestHandler):
         self.send_error(404)
 
 
-class TwitterLoginHandler(tornado.web.RequestHandler,
+"""class TwitterLoginHandler(tornado.web.RequestHandler,
                           tornado.auth.TwitterMixin):
     @tornado.gen.coroutine
     def get(self):
@@ -41,14 +42,20 @@ class TwitterLoginHandler(tornado.web.RequestHandler,
             if next:
                 define("auth_redirect", next)
             yield self.authenticate_redirect()
+"""
 
 class RegisterAppClient(tornado.web.RequestHandler,
                         tornado.auth.TwitterMixin):
     @tornado.gen.coroutine
     def post(self):
         input = self.request.body
-        input = input.decode("utf-8")
-        inputDict = json.loads(input)
+        try:
+            input = input.decode("utf-8")
+            inputDict = json.loads(input)
+        except:
+            self.set_status(400)
+            self.finish("Failed to parse JSON")
+            return
         if (all(x in inputDict.keys() for x in ["key", "secret", "user_id"])):
             existingUser = lib.db.getUserByUserID(inputDict['user_id'], options.connection)
             access = inputDict
@@ -56,7 +63,7 @@ class RegisterAppClient(tornado.web.RequestHandler,
             if existingUser:
                 access = existingUser
                 try:
-                    new_user = yield self.twitter_request("/account/verify_credentials", 
+                    new_user = yield self.twitter_request("/account/verify_credentials",
                                access_token=access)
                     self.finish("OK")
                     return
@@ -84,7 +91,41 @@ class RegisterAppClient(tornado.web.RequestHandler,
             return
 
 
-class AddTwitterPrediction(tornado.web.RequestHandler, 
+class AddUserNotificationID(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def post(self):
+        input = self.request.body
+        try:
+            input = input.decode("utf-8")
+            inputDict = json.loads(input)
+        except:
+            self.set_status(400)
+            self.finish("Failed to parse JSON")
+            return
+        properKeys = ["key", "regid"]
+        if not (all(x in inputDict.keys() for x in properKeys)):
+            self.set_status(400)
+            print("Some required parameters were not found")
+            print(inputDict.keys(), " != ",  properKeys)
+            self.finish("Some required parameters were not found")
+            return
+        user = lib.db.getUserByKey(inputDict['key'], options.connection)
+        if not user:
+            set_status(400)
+            self.finish("User not found")
+        user["regid"] = inputDict["regid"]
+        message = {"test":"registration sucessful"}
+        response = options.gcm.json_request(registration_ids=[user["regid"],], data = message, priority='high')
+        if response and 'errors' not in response and 'success' in response:
+            for reg_id, success_id in response['success'].items():
+                print('Successfully sent notification for reg_id {0}'.format(reg_id))
+                lib.db.updateUserNotificationID(user, options.connection)
+        self.finish()
+        return
+
+
+
+class AddTwitterPrediction(tornado.web.RequestHandler,
                     tornado.auth.TwitterMixin):
     @tornado.gen.coroutine
     def post(self):
@@ -98,7 +139,11 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
             return
         invalidRequest = False
         requestErrors = {}
-        if not(all(x in inputDict.keys() for x in ["key", "text", "dueDate", "arbiterHandle"])):
+        properKeys = ["key", "text", "dueDate", "arbiterHandle"]
+        if not(all(x in inputDict.keys() for x in properKeys)):
+            print("Some required parameters were not found")
+            print(inputDict.keys(), " != ",  properKeys)
+            self.finish("Some required parameters were not found")
             self.send_error(400)
             return
         user = lib.db.getUserByKey(inputDict['key'], options.connection)
@@ -114,12 +159,12 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
             invalidRequest = True
             requestErrors['text'] = "Post text too long"
         if invalidRequest:
-            self.set_status(400)      
+            self.set_status(400)
             self.finish(requestErrors)
             return
         """ try:
             testHandle = yield self.twitter_request(
-                        "/users/show", access_token = user, 
+                        "/users/show", access_token = user,
                         args = {
                             'screen_name':inputDict['arbiterHandle'],
                             'include_entities':'false',
@@ -169,8 +214,8 @@ class AddTwitterPrediction(tornado.web.RequestHandler,
         status = {}
         status['url'] = prediction['url']
         self.finish(status)
-        
-        
+
+
 class ShowTwitterPrediction(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, url):
@@ -198,7 +243,7 @@ class ShowUserProfile(tornado.web.RequestHandler):
         for dataSet in ExtraDataSets.dataSets:
             dataSetDescription = dataSet["description"]
             print(dataSet["title"])
-            predictions = lib.db_datasets.getUserDatasetPredictions(dataSetDescription.title, 
+            predictions = lib.db_datasets.getUserDatasetPredictions(dataSetDescription.title,
                                                                               dataSetDescription.predictionFields, user['id'],
                                                                               options.connection)
             predictionsDataset[dataSetDescription.title] = predictions
@@ -223,7 +268,7 @@ class ShowUserProfileWithWagers(tornado.web.RequestHandler):
 
         for dataSet in ExtraDataSets.dataSets:
             dataSetDescription = dataSet["description"]
-            predictions = lib.db_datasets.getUserDatasetPredictionsWithWagers(dataSetDescription.title, 
+            predictions = lib.db_datasets.getUserDatasetPredictionsWithWagers(dataSetDescription.title,
                                                                               dataSetDescription.predictionFields, user['id'],
                                                                               options.connection)
             predictionsDataset[dataSetDescription.title] = predictions
@@ -248,7 +293,7 @@ class ShowUserProfileOnlyUndecided(tornado.web.RequestHandler):
 
         for dataSet in ExtraDataSets.dataSets:
             dataSetDescription = dataSet["description"]
-            predictions = lib.db_datasets.getUserDatasetPredictionsOnlyUndecided(dataSetDescription.title, 
+            predictions = lib.db_datasets.getUserDatasetPredictionsOnlyUndecided(dataSetDescription.title,
                                                                               dataSetDescription.predictionFields, user['id'],
                                                                               options.connection)
             predictionsDataset[dataSetDescription.title] = predictions
@@ -276,21 +321,24 @@ class AddTwitterPredictionComment(tornado.web.RequestHandler):
             self.set_status(400)
             self.finish("Failed to parse JSON")
             return
-            
-        if not(all(x in inputDict.keys() for x in ["author", "text"])):
+
+        properKeys = ["author", "text"]
+        if not(all(x in inputDict.keys() for x in properKeys)):
             self.set_status(400)
+            print("Some required parameters were not found")
+            print(inputDict.keys(), " != ",  properKeys)
             self.finish("Some required parameters were not found")
             return
-            
+
         user = lib.db.getUserByKey(inputDict['author'], options.connection)
         if not user:
             requestErrors['author'] = "User not found"
             invalidRequest = True
-            
+
         if len(inputDict['text']) > 140 or len(inputDict['text']) < 1:
             requestErrors['text'] = "Comment text should exist and be less then 140 symbols long"
             invalidRequest = True
-            
+
         if invalidRequest:
             self.set_status(400)
             self.finish(requestErrors)
@@ -326,8 +374,11 @@ class AddTwitterPredictionWager(tornado.web.RequestHandler):
             self.set_status(400)
             self.finish("Failed to parse JSON")
             return
-        if not(all(x in inputDict.keys() for x in ["key", "wager"])):
+        properKeys = ["key", "wager"]
+        if not(all(x in inputDict.keys() for x in properKeys)):
             self.set_status(400)
+            print("Some required parameters were not found")
+            print(inputDict.keys(), " != ",  properKeys)
             self.finish("Some required parameters were not found")
             return
         user = lib.db.getUserByKey(inputDict['key'], options.connection)
@@ -338,11 +389,11 @@ class AddTwitterPredictionWager(tornado.web.RequestHandler):
         if not (s == "0" or s == "1"):
             requestErrors['wager'] = "Wager should be either 1 or 0"
             invalidRequest = True
-            
+
         if invalidRequest:
             self.set_status(400)
             self.finish(requestErrors)
-            return 
+            return
         wager = lib.db.getTwitterPredictionAuthorWager(prediction['id'], user['id'], options.connection)
         if wager:
             self.send_error(403)
@@ -362,6 +413,7 @@ class AddTwitterPredictionWager(tornado.web.RequestHandler):
 def make_app(settings):
     endpoints = ExtraDataSets.endpoints + ([
         (r"/register", RegisterAppClient),
+        (r"/register/token", AddUserNotificationID),
         (r"/prediction/twitter", AddTwitterPrediction),
         (r"/prediction/twitter/wager/(.*)", AddTwitterPredictionWager),
         (r"/prediction/twitter/comment/(.*)", AddTwitterPredictionComment),
@@ -398,8 +450,9 @@ if __name__ == "__main__":
     database = options.mysql["database"]
     conn = pymysql.connect(host=server, user=user, password=password, db=database,cursorclass=pymysql.cursors.DictCursor, charset='utf8')
     define("connection", conn)
+    gcm = GCM(options.gcm_key)
+    define("gcm", gcm)
     ExtraDataSets.init()
     app = make_app(options.as_dict())
     app.listen(8080)
     tornado.ioloop.IOLoop.current().start()
-

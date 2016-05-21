@@ -157,6 +157,15 @@ def getDatasetWagers(title, valuesDict, predictionID, connection):
         cursor.execute(sql, (predictionID))
         return cursor.fetchall()
 
+def getDatasetWagersLocal(title, valuesDict, predictionID, connection):
+    connection.commit()
+    with connection.cursor() as cursor:
+        sql = "SELECT {2}, `predictionID`, `authorID`, `Users`.`name`, `Users`.`user_id`, `Users`.`screen_name` as 'handle', `Users`.`regid`, {1}\
+               FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID` = `Users`.`id`\
+               WHERE `predictionID` = %s".format(tableWager(title), stringData(valuesDict), stringData(defaultWagerFields))
+        cursor.execute(sql, (predictionID))
+        return cursor.fetchall()
+
 def getDatasetUserWager(title, valuesDict, predictionID, authorID, connection):
     connection.commit()
     with connection.cursor() as cursor:
