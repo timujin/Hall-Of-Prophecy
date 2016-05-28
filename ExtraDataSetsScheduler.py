@@ -1,18 +1,24 @@
 import ExtraDataSets
 import lib.db_datasets
 import lib.util
+import sys
 
 from tornado.options import options
 import pymysql
 import gcm
 
+debug = False
 
 def main(connection):
     gcm_service = gcm.GCM(options.gcm_key)
     descriptions = ExtraDataSets.getDatasetsDescriptions()
     for description in descriptions.values():
+        predictionsToRate = ''
         print(description)
-        predictionsToRate = lib.db_datasets.getDatasetDuePredictions(description.title, description.predictionFields, 10, connection) #Change number to rate to a more dynamic value
+        if not debug:
+            predictionsToRate = lib.db_datasets.getDatasetDuePredictions(description.title, description.predictionFields, 10, connection) #Change number to rate to a more dynamic value
+        else:
+            predictionsToRate = lib.db_datasets.getDatasetDuePredictionsDemo(description.title, description.predictionFields, 10, connection) #Change number to rate to a more dynamic value
         print(predictionsToRate, sep='\n')
         for prediction in predictionsToRate:
             judgement = description.getJudgement(prediction)
@@ -35,12 +41,14 @@ def main(connection):
                     lib.db_datasets.updateDatasetWagerJudgement(description.title, wager['authorID'], wager['predictionID'],wager['wagerResult'], connection)
                 try:
                     gcm_service.json_request(registration_ids=regids, data = message, priority='high')
-                except gcm.GCMException:
+                except Exception:
                     print('regid was not found')
                     pass
                 connection.commit()
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        debug = True
     lib.util.parse_config_file("config.conf")
     mysql = options.mysql
     server = mysql["server"]

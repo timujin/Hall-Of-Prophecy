@@ -103,7 +103,7 @@ def getUserDatasetPredictions(title, valuesDict, userID, connection):
 def getUserDatasetPredictionsWithWagers(title, valuesDict, userID, connection):
     connection.commit()
     with connection.cursor() as cursor:
-        sql = "SELECT {3}, {1}\
+        sql = "SELECT {3}, {1}, `{2}`.`wagerResult`\
                FROM `{2}` LEFT JOIN `{0}` ON `{2}`.`predictionID`=`{0}`.`id`\
                LEFT JOIN `Users` ON `{2}`.`authorID`=`Users`.`id`\
                WHERE `{2}`.`authorID`=%s\
@@ -115,10 +115,12 @@ def getUserDatasetPredictionsWithWagers(title, valuesDict, userID, connection):
 def getUserDatasetPredictionsOnlyUndecided(title, valuesDict, userID, connection):
     connection.commit()
     with connection.cursor() as cursor:
-        sql = "SELECT {2}, {1}\
-               FROM `{0}` LEFT JOIN `Users` ON `{0}`.`authorID`=`Users`.`id`\
-               WHERE `{0}`.`authorID` = %s AND `result` IS NULL\
-               ORDER BY `{0}`.`dueDate` ASC".format(tablePrediction(title), stringData(valuesDict), stringData(defaultPredictionFields))
+        sql = "SELECT {3}, {1}, `{2}`.`wagerResult`\
+               FROM `{2}` LEFT JOIN `{0}` ON `{2}`.`predictionID`=`{0}`.`id`\
+               LEFT JOIN `Users` ON `{2}`.`authorID`=`Users`.`id`\
+               WHERE `{2}`.`authorID`=%s AND `{0}`.`result` IS NULL\
+               ORDER BY `{0}`.`dueDate` ASC".format(tablePrediction(title), stringData(valuesDict),
+                                                 tableWager(title), stringData(defaultPredictionFields))
         cursor.execute(sql, (userID))
         return cursor.fetchall()
 
@@ -179,6 +181,17 @@ def getDatasetUserWager(title, valuesDict, predictionID, authorID, connection):
 
 def getDatasetDuePredictions(title, valuesDict, num, connection):
     tday = datetime.utcnow().timestamp()
+    with connection.cursor() as cursor:
+        sql = "SELECT `{0}`.`id`, {2}, {1}\
+               FROM `{0}` WHERE `{0}`.`dueDate` <= %s AND `result` IS NULL\
+               ORDER BY `{0}`.`dueDate` DESC LIMIT %s".format(tablePrediction(title), stringData(valuesDict), stringData(defaultPredictionFields))
+        cursor.execute(sql, (tday, num))
+        result = cursor.fetchall()
+        return result
+
+
+def getDatasetDuePredictionsDemo(title, valuesDict, num, connection):
+    tday = 9999999999
     with connection.cursor() as cursor:
         sql = "SELECT `{0}`.`id`, {2}, {1}\
                FROM `{0}` WHERE `{0}`.`dueDate` <= %s AND `result` IS NULL\

@@ -38,14 +38,17 @@ judgementFields = {
 
 def processPrediction(prediction):
     if (prediction['currencies'] not in availableCurrencies):
+        print('currency not found')
         return None
     try:
         dueDate = datetime.datetime.utcfromtimestamp(prediction['dueDate'])
     except ValueError:
+        print('failed to convert dueDate')
         return None
     dueDate = dueDate.replace(hour = 0, minute = 0, second = 0, microsecond = 0)
     dueDateDelta = dueDate.date() - datetime.datetime.utcnow().date()
     if (dueDateDelta.days < 1):
+        print('due date delta less than 1 day')
         return None
     prediction['dueDate'] = dueDate.timestamp()
     return prediction

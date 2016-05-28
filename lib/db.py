@@ -116,16 +116,19 @@ def getUserTwitterPredictions(userID, connection):
     with connection.cursor() as cursor:
         sql = "SELECT `twitterPredictions`.`url`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
                FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
-               WHERE `twitterPredictions`.`authorID` = %s"
+               WHERE `twitterPredictions`.`authorID` = %s\
+               ORDER BY `dueDate` ASC"
         cursor.execute(sql, (userID))
         return cursor.fetchall()
 
 def getUserTwitterPredictionsOnlyUndecided(userID, connection):
     connection.commit()
     with connection.cursor() as cursor:
-        sql = "SELECT `twitterPredictions`.`url`,`name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
-               FROM `twitterPredictions` LEFT JOIN `Users` ON `twitterPredictions`.`authorID`=`Users`.`id`\
-               WHERE `twitterPredictions`.`authorID` = %s AND `result` IS NULL"
+        sql = "SELECT `twitterPredictions`.`url`, `name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
+               FROM `twitterWagers` LEFT JOIN `twitterPredictions` ON `twitterWagers`.`predictionID`=`twitterPredictions`.`id`\
+               LEFT JOIN `Users` ON `twitterWagers`.`authorID`=`Users`.`id`\
+               WHERE `twitterWagers`.`authorID`=%s AND `result` IS NULL\
+               ORDER BY `dueDate` ASC"
         cursor.execute(sql, (userID))
         return cursor.fetchall()
 
@@ -135,7 +138,8 @@ def getUserTwitterPredictionsWithWagers(userID, connection):
         sql = "SELECT `twitterPredictions`.`url`, `name`, `text`, `arbiterHandle`, `dueDate`, `result`, `resultTweetID`\
                FROM `twitterWagers` LEFT JOIN `twitterPredictions` ON `twitterWagers`.`predictionID`=`twitterPredictions`.`id`\
                LEFT JOIN `Users` ON `twitterWagers`.`authorID`=`Users`.`id`\
-               WHERE `twitterWagers`.`authorID`=%s"
+               WHERE `twitterWagers`.`authorID`=%s\
+               ORDER BY `dueDate` ASC"
         cursor.execute(sql, (userID))
         return cursor.fetchall()
 
