@@ -449,6 +449,7 @@ if __name__ == "__main__":
     password = options.mysql["password"]
     database = options.mysql["database"]
     conn = pymysql.connect(host=server, user=user, password=password, db=database,cursorclass=pymysql.cursors.DictCursor, charset='utf8')
+    conn = lib.util.makePwnedConnection(conn)
     define("connection", conn)
     gcm = GCM(options.gcm_key)
     define("gcm", gcm)
@@ -456,3 +457,4 @@ if __name__ == "__main__":
     app = make_app(options.as_dict())
     app.listen(8080)
     tornado.ioloop.IOLoop.current().start()
+    

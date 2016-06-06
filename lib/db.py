@@ -34,6 +34,7 @@ def saveTwitterPrediction(pred, connection):
     connection.commit()
 
 def getUserByHandle(handle, connection):
+    connection.commit()
     with connection.cursor() as cursor:
         sql = "SELECT `id`,`name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`, `regid`\
                FROM `Users` WHERE `screen_name` = %s"
@@ -41,6 +42,7 @@ def getUserByHandle(handle, connection):
         return cursor.fetchone()
 
 def getUserByKey(key, connection):
+    connection.commit()
     with connection.cursor() as cursor:
         sql = "SELECT `id`, `name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
                FROM `Users` WHERE `key` = %s"
@@ -48,6 +50,7 @@ def getUserByKey(key, connection):
         return cursor.fetchone()
 
 def getUserByUserID(user_id, connection):
+    connection.commit()
     with connection.cursor() as cursor:
         sql = "SELECT `id`, `name`, `screen_name`, `key`, `user_id`, `secret`, `x_auth_expires`\
                FROM `Users` WHERE `user_id` = %s"
